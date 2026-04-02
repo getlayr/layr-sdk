@@ -16,7 +16,7 @@ pip install layr-sdk
 
 ## Quickstart
 
-Create an API key from your [Layr account](https://getlayr.io), then:
+Create an API key from your [Layr account](https://www.getlayr.co), then:
 
 ```python
 from layr import Agent
@@ -35,8 +35,8 @@ agent.track(
 
 ## Documentation
 
-Full documentation: [docs.getlayr.io](https://docs.getlayr.io)
+Full documentation: [www.getlayr.co/docs](https://www.getlayr.co/docs)
 
 ## License
 
-MIT — Built by the Layr team at [getlayr.io](https://getlayr.io)
+MIT — Built by the Layr team at [www.getlayr.co](https://www.getlayr.co)
