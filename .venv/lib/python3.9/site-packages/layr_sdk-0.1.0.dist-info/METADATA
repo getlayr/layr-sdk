@@ -1,0 +1,69 @@
+Metadata-Version: 2.4
+Name: layr-sdk
+Version: 0.1.0
+Summary: Observability for AI agents
+License: MIT
+Project-URL: Homepage, https://getlayr.io
+Project-URL: Documentation, https://docs.getlayr.io
+Project-URL: Repository, https://github.com/getlayr/layr-sdk
+Project-URL: Issues, https://github.com/getlayr/layr-sdk/issues
+Keywords: ai,agents,observability,monitoring,llm,langchain,opentelemetry,tracing
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: httpx>=0.24.0
+Requires-Dist: opentelemetry-sdk>=1.20.0
+Requires-Dist: opentelemetry-exporter-otlp>=1.20.0
+Provides-Extra: langchain
+Requires-Dist: langchain>=0.1.0; extra == "langchain"
+Provides-Extra: crewai
+Requires-Dist: crewai>=0.1.0; extra == "crewai"
+Provides-Extra: autogen
+Requires-Dist: pyautogen>=0.2.0; extra == "autogen"
+Provides-Extra: datadog
+Requires-Dist: datadog>=0.47.0; extra == "datadog"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: mypy>=1.0; extra == "dev"
+Dynamic: license-file
+
+# Layr
+
+Observability for AI agents. Instrument your agents 
+in three lines of code and get full visibility into 
+every action, decision, and resource they consume — 
+works with the observability stack you already have.
+
+## Install
+
+pip install layr-sdk
+
+## Quickstart
+
+from layr import Agent
+
+agent = Agent(api_key="your-key")
+
+agent.track(
+    action="send_email",
+    target="user@example.com",
+    reasoning="Customer requested order update",
+    input_tokens=450,
+    output_tokens=210,
+    latency_ms=1200
+)
+
+## Documentation
+
+Full docs at docs.getlayr.io
+
+## License
+
+MIT — Built by the Layr team at getlayr.io
