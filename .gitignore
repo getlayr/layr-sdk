@@ -19,3 +19,5 @@ dmypy.json
 .env
 .env.*
 !.env.example
+venv/
+*.egg-info/
