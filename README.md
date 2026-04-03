@@ -33,6 +33,10 @@ agent.track(
 )
 ```
 
+## See it in action
+
+![Layr local output](docs/layr-output.png)
+
 ## Documentation
 
 Full documentation: [www.getlayr.co/docs](https://www.getlayr.co/docs)

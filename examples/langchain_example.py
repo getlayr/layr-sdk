@@ -1,4 +1,15 @@
+# Run this example with no configuration needed
+# Shows Layr instrumenting a LangChain agent
+# Output is logged to console in local mode
+
+import os
+
+# Default to console-only export when Layr env vars are unset (no OTLP / no backend).
+os.environ.setdefault("LAYR_MODE", "local")
+os.environ.setdefault("LAYR_EXPORTER", "local")
+
 import asyncio
+
 from layr.integrations.langchain import LayrCallbackHandler
 
 
