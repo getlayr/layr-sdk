@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Dict, Optional
 
 
-SDK_VERSION = "0.1.0"
+SDK_VERSION = "0.1.1"
 
 MODEL_PRICING_PER_MILLION: Dict[str, Dict[str, float]] = {
     "gpt-4o": {"input": 2.50, "output": 10.00},

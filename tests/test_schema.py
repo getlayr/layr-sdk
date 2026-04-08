@@ -37,7 +37,7 @@ def test_schema_to_dict() -> None:
         error_rate=0.0,
         deviation_from_baseline=0.0,
         timestamp="now",
-        layr_sdk_version="0.1.0",
+        layr_sdk_version="0.1.1",
         metadata={"k": "v"},
     )
     d = e.to_dict()
