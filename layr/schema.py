@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Tuple
+
+# Hot evidence columns. Omitted from ``to_dict`` when empty so existing
+# event payloads stay the same shape for callers that do not use oversight.
+_EVIDENCE_FIELDS: Tuple[str, ...] = (
+    "evidence_kind",
+    "decision_id",
+    "prev_hash",
+    "evidence_hash",
+    "article_26",
+    "article_26_duty",
+)
 
 
 @dataclass
@@ -42,6 +53,16 @@ class LayrEvent:
     timestamp: str
     layr_sdk_version: str
     metadata: Dict[str, object] = field(default_factory=dict)
+    evidence_kind: str = ""
+    decision_id: str = ""
+    prev_hash: str = ""
+    evidence_hash: str = ""
+    article_26: str = ""
+    article_26_duty: str = ""
 
     def to_dict(self) -> Dict[str, object]:
-        return asdict(self)
+        data = asdict(self)
+        for key in _EVIDENCE_FIELDS:
+            if data.get(key) == "":
+                data.pop(key, None)
+        return data
