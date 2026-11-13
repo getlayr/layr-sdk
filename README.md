@@ -33,6 +33,43 @@ agent.track(
 )
 ```
 
+That constructor uses the OpenTelemetry exporter (`otlp`). To send events to Layr Cloud, set `LAYR_API_KEY` and do not set an exporter, or pass `exporter="layr"`.
+
+## Exporters
+
+| Setting | Argument | Environment variable |
+| --- | --- | --- |
+| Exporter | `exporter="otlp"`, `"layr"`, `"datadog"`, `"grafana"`, or `"local"` | `LAYR_EXPORTER` |
+| API key | `api_key=` | `LAYR_API_KEY` |
+| Layr Cloud URL | `endpoint=` | `LAYR_ENDPOINT` |
+| Mode | `mode="production"` or `"local"` | `LAYR_MODE` |
+| Raise on export failure | `raise_on_export_error=True` | — |
+
+`endpoint` wins over `LAYR_ENDPOINT`, which wins over the default `http://localhost:3000/api/events`. A base URL such as `https://api.getlayr.co` is accepted; `/api/events` is appended when it is missing.
+
+```python
+agent = Agent(
+    api_key="your-key",
+    exporter="layr",
+    endpoint="https://api.getlayr.co",
+)
+```
+
+```bash
+export LAYR_API_KEY="your-key"
+export LAYR_ENDPOINT="https://api.getlayr.co"
+```
+
+```python
+agent = Agent()  # Layr Cloud, because LAYR_API_KEY is set and no exporter was given
+```
+
+If `LAYR_API_KEY` is set and neither `exporter` nor `LAYR_EXPORTER` is set, the SDK selects Layr Cloud and logs that choice once. Passing `api_key=` in code without `LAYR_API_KEY` keeps the OpenTelemetry default. The SDK also logs the active exporter once when `LAYR_API_KEY` is present.
+
+`LAYR_MODE=local` (or `mode="local"`) always uses the local stdout exporter. That overrides `exporter="layr"`.
+
+A non-2xx response or a connection error logs a warning with the status, a short reason, and the endpoint. The API key is not logged. The host agent keeps running. Pass `raise_on_export_error=True` to raise `ExportError` instead.
+
 ## See it in action
 
 ![Layr local output](docs/layr-output.png)

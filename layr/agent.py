@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass
 from threading import Lock
@@ -44,6 +45,42 @@ from layr.schema import LayrEvent
 from layr.session import SessionContext, SessionState, new_session
 from layr.utils import env, generate_id, utc_now_iso
 
+logger = logging.getLogger("layr.agent")
+_LOGGED_EXPORTER_CHOICES: set[str] = set()
+
+
+def _log_exporter_choice(
+    *,
+    configured: str,
+    mode: str,
+    api_key_from_env: bool,
+    implicit_layr: bool,
+) -> None:
+    """Log the active exporter once per distinct message.
+
+    Called when Layr Cloud was selected because LAYR_API_KEY is set, when that
+    key is present, or when local mode replaces another exporter.
+    """
+    effective = "local" if mode == "local" or configured == "local" else configured
+    if mode == "local" and configured != "local":
+        message = (
+            "Layr exporter active: local. "
+            f"LAYR_MODE=local overrides exporter={configured!r}."
+        )
+    elif implicit_layr:
+        message = (
+            "Layr exporter active: layr "
+            "(LAYR_API_KEY is set and no exporter was given)."
+        )
+    elif api_key_from_env:
+        message = f"Layr exporter active: {effective}."
+    else:
+        return
+    if message in _LOGGED_EXPORTER_CHOICES:
+        return
+    _LOGGED_EXPORTER_CHOICES.add(message)
+    logger.info(message)
+
 
 @dataclass
 class AgentConfig:
@@ -81,11 +118,14 @@ class Agent:
         retention_days: int = 180,
         storage_region: str = "",
         retention_immutable: bool = True,
+        endpoint: Optional[str] = None,
+        raise_on_export_error: bool = False,
     ) -> None:
         resolved_api_key = api_key or env("LAYR_API_KEY")
         if not resolved_api_key:
             raise ConfigurationError("api_key is required")
 
+        resolved_exporter, implicit_layr = _resolve_exporter(exporter)
         self.config = AgentConfig(
             api_key=resolved_api_key,
             agent_name=agent_name or env("LAYR_AGENT_NAME", "agent") or "agent",
@@ -97,7 +137,7 @@ class Agent:
             or "production",
             framework=framework or env("LAYR_FRAMEWORK", "custom") or "custom",
             model=model or env("LAYR_MODEL", "gpt-4o") or "gpt-4o",
-            exporter=exporter or env("LAYR_EXPORTER", "otlp") or "otlp",
+            exporter=resolved_exporter,
             mode=mode or env("LAYR_MODE", "production") or "production",
         )
         self.agent_id = generate_id()
@@ -109,6 +149,7 @@ class Agent:
         self._worker: Optional[asyncio.Task[None]] = None
         self._shutdown = False
         self._fail_silent = fail_silent
+        self._raise_on_export_error = raise_on_export_error
         self._anomaly_detection = anomaly_detection
         self._on_anomaly = on_anomaly
         self._baselines = Baselines(
@@ -141,6 +182,14 @@ class Agent:
             datadog_site=datadog_site,
             grafana_endpoint=grafana_endpoint,
             grafana_token=grafana_token,
+            endpoint=endpoint,
+            raise_on_export_error=raise_on_export_error,
+        )
+        _log_exporter_choice(
+            configured=self.config.exporter,
+            mode=self.config.mode,
+            api_key_from_env=env("LAYR_API_KEY") is not None,
+            implicit_layr=implicit_layr,
         )
 
     def _make_exporter(
@@ -151,6 +200,8 @@ class Agent:
         datadog_site: Optional[str],
         grafana_endpoint: Optional[str],
         grafana_token: Optional[str],
+        endpoint: Optional[str],
+        raise_on_export_error: bool,
     ) -> BaseExporter:
         if self.config.mode == "local" or self.config.exporter == "local":
             return LocalExporter()
@@ -174,7 +225,11 @@ class Agent:
                 or "",
                 grafana_token or env("LAYR_GRAFANA_TOKEN", "") or "",
             )
-        return LayrCloudExporter(self.config.api_key)
+        return LayrCloudExporter(
+            self.config.api_key,
+            endpoint=endpoint,
+            raise_on_export_error=raise_on_export_error,
+        )
 
     async def _ensure_worker(self) -> None:
         loop = asyncio.get_running_loop()
@@ -212,9 +267,9 @@ class Agent:
                 return
             except Exception as exc:
                 if attempt == 4:
-                    if self._fail_silent:
+                    if self._fail_silent and not self._raise_on_export_error:
                         return
-                    raise ExportError(str(exc))
+                    raise ExportError(str(exc)) from exc
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 2.0)
 
@@ -816,6 +871,23 @@ class Agent:
         await self.flush()
         await self._exporter.close()
         await self.review_backend.aclose()
+
+
+def _resolve_exporter(explicit: Optional[str]) -> tuple[str, bool]:
+    """Return ``(exporter, implicit_layr)``.
+
+    Precedence is the ``exporter`` argument, then ``LAYR_EXPORTER``, then
+    ``layr`` when ``LAYR_API_KEY`` is set, otherwise ``otlp``. ``mode="local"``
+    still forces the local exporter later.
+    """
+    if explicit:
+        return explicit, False
+    from_env = env("LAYR_EXPORTER")
+    if from_env:
+        return from_env, False
+    if env("LAYR_API_KEY"):
+        return "layr", True
+    return "otlp", False
 
 
 def _timeout_seconds(value: float) -> Union[int, float]:
