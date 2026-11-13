@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 from layr.schema import LayrEvent
 from layr.session import SessionState
@@ -37,8 +37,9 @@ def build_event(
     cost_per_hour_usd: float,
     error_rate: float,
     deviation_from_baseline: float,
-    metadata: Optional[Dict[str, object]],
+    metadata: Optional[Mapping[str, object]],
     model: Optional[str],
+    timestamp: Optional[str] = None,
 ) -> LayrEvent:
     m = model or default_model
     in_t = max(0, int(input_tokens))
@@ -47,7 +48,7 @@ def build_event(
     conf = max(0.0, min(1.0, float(confidence)))
     cost = estimate_cost_usd(m, in_t, out_t)
 
-    return LayrEvent(
+    event = LayrEvent(
         agent_id=agent_id,
         agent_name=agent_name,
         agent_version=agent_version,
@@ -81,7 +82,27 @@ def build_event(
         cost_per_hour_usd=float(cost_per_hour_usd),
         error_rate=float(error_rate),
         deviation_from_baseline=float(deviation_from_baseline),
-        timestamp=utc_now_iso(),
+        timestamp=timestamp or utc_now_iso(),
         layr_sdk_version=SDK_VERSION,
         metadata=dict(metadata or {}),
     )
+    _promote_evidence_fields(event)
+    return event
+
+
+def _md_str(metadata: Dict[str, object], key: str) -> str:
+    value = metadata.get(key, "")
+    if isinstance(value, str):
+        return value
+    return ""
+
+
+def _promote_evidence_fields(event: LayrEvent) -> None:
+    """Copy hot evidence keys out of metadata so exporters see first-class fields."""
+    metadata = event.metadata
+    event.evidence_kind = _md_str(metadata, "evidence_kind")
+    event.decision_id = _md_str(metadata, "decision_id")
+    event.prev_hash = _md_str(metadata, "prev_hash")
+    event.evidence_hash = _md_str(metadata, "evidence_hash")
+    event.article_26 = _md_str(metadata, "article_26")
+    event.article_26_duty = _md_str(metadata, "article_26_duty")
