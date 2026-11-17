@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-11-17
 
 - Added an optional LangChain extra. `LayrCallbackHandler` and `LayrAsyncCallbackHandler` record tool and model calls. `require_review_tool` runs a tool only after a named person approves it. Prompt and response text is omitted unless `capture_content=True`.
 
