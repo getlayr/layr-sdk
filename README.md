@@ -208,6 +208,36 @@ A review event keeps the usual `LayrEvent` fields. The hashed metadata also incl
 
 OTLP spans keep the existing `layr.<field>` attributes. Scalar metadata is also copied to `layr.meta.<key>`, and the full metadata object is `layr.metadata_json`.
 
+## LangChain
+
+Install the optional extra:
+
+```bash
+pip install "layr-sdk[langchain]"
+```
+
+`import layr` does not import LangChain. `LayrCallbackHandler` and `LayrAsyncCallbackHandler` take an existing `Agent` and record tool and model calls. Prompt and response text is left out unless `capture_content=True`. `require_review_tool` runs a tool only when `require_review` returns `approved`. Any other outcome raises `ToolReviewDenied` and does not call the tool.
+
+```python
+from layr import Agent, CallbackReviewBackend, ReviewResolution
+from layr.integrations.langchain import LayrAsyncCallbackHandler, require_review_tool
+
+agent = Agent(api_key="your-key", agent_name="langchain-agent", exporter="local", mode="local")
+handler = LayrAsyncCallbackHandler(agent)
+# model.ainvoke("...", config={"callbacks": [handler]})
+
+gated = require_review_tool(
+    search_tool,
+    agent,
+    reviewer="ava@example.com",
+    decision_id_fn=lambda tool_input: tool_input["id"],
+    timeout_s=3600,
+    on_timeout="deny",
+)
+```
+
+A runnable local example is `examples/langchain_agent.py`.
+
 ## Documentation
 
 Full documentation: [www.getlayr.co/docs](https://www.getlayr.co/docs)

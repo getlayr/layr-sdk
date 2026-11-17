@@ -1,24 +1,26 @@
-# Run this example with no configuration needed
-# Shows Layr instrumenting a LangChain agent
-# Output is logged to console in local mode
-
-import os
-
-# Default to console-only export when Layr env vars are unset (no OTLP / no backend).
-os.environ.setdefault("LAYR_MODE", "local")
-os.environ.setdefault("LAYR_EXPORTER", "local")
+"""Small LangChain callback demo. See examples/langchain_agent.py for the review gate."""
 
 import asyncio
 
-from layr.integrations.langchain import LayrCallbackHandler
+from layr import Agent
+from layr.integrations.langchain import LayrAsyncCallbackHandler
 
 
-async def demo() -> None:
-    cb = LayrCallbackHandler(api_key="your-key", agent_name="customer-support-agent")
-    await cb.on_chain_start({"name": "support-chain"}, {"ticket_id": "123"})
-    await cb.on_llm_end(response="ok", model="gpt-4o", input_tokens=120, output_tokens=80)
-    await cb._agent.aclose()
+async def main() -> None:
+    agent = Agent(
+        api_key="local",
+        agent_name="customer-support-agent",
+        exporter="local",
+        mode="local",
+    )
+    handler = LayrAsyncCallbackHandler(agent)
+    from uuid import uuid4
+
+    run_id = uuid4()
+    await handler.on_tool_start({"name": "search"}, "ticket 123", run_id=run_id)
+    await handler.on_tool_end("found", run_id=run_id)
+    await agent.aclose()
 
 
 if __name__ == "__main__":
-    asyncio.run(demo())
+    asyncio.run(main())
