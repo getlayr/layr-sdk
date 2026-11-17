@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.2.0
+## 0.2.0 — 2026-11-17
+
+Changes since 0.1.1.
 
 - Added `Agent.require_review` / `require_review_sync` to pause a decision until a named human approves, overrides, or escalates.
 - Added in-memory callback and webhook review backends, plus explicit `human_review`, `override`, and `escalate` events.
