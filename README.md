@@ -19,19 +19,28 @@ pip install layr-sdk
 Create an API key from your [Layr account](https://www.getlayr.co), then:
 
 ```python
+import asyncio
+
 from layr import Agent
 
-agent = Agent(api_key="your-key")
 
-agent.track(
-    action="send_email",
-    target="user@example.com",
-    reasoning="Customer requested order update",
-    input_tokens=450,
-    output_tokens=210,
-    latency_ms=1200,
-)
+async def main() -> None:
+    agent = Agent(api_key="your-key", agent_name="support-agent")
+    await agent.track(
+        action="send_email",
+        target="user@example.com",
+        reasoning="Customer requested order update",
+        input_tokens=450,
+        output_tokens=210,
+        latency_ms=1200,
+    )
+    await agent.aclose()
+
+
+asyncio.run(main())
 ```
+
+`track` is async. `agent_name` is optional and defaults to `"agent"`.
 
 That constructor uses the OpenTelemetry exporter (`otlp`). To send events to Layr Cloud, set `LAYR_API_KEY` and do not set an exporter, or pass `exporter="layr"`.
 

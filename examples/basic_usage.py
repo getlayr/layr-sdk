@@ -5,10 +5,11 @@ from layr import Agent
 
 async def main() -> None:
     agent = Agent(
-        api_key="your-layer-api-key",
+        api_key="your-key",
         agent_name="customer-support-agent",
         environment="production",
-        base_url="http://localhost:3000",
+        exporter="layr",
+        endpoint="http://localhost:3000",
     )
     await agent.track(
         action="send_email",

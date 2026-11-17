@@ -1,4 +1,5 @@
 from layr.agent import Agent, AgentNetwork
+from layr.utils import SDK_VERSION as __version__
 from layr.evidence import (
     GENESIS_HASH,
     EvidenceLog,
@@ -19,6 +20,7 @@ from layr.review import (
 from layr.schema import LayrEvent
 
 __all__ = [
+    "__version__",
     "Agent",
     "AgentNetwork",
     "CallbackReviewBackend",
