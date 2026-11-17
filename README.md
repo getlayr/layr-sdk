@@ -74,11 +74,11 @@ A non-2xx response or a connection error logs a warning with the status, a short
 
 ![Layr local output](docs/layr-output.png)
 
-## Human oversight
+## Human checkpoint
 
-`require_review` pauses a high-risk decision until a named person approves, overrides, or escalates it. The request and the outcome are normal `LayrEvent`s, so they export through OTLP, Datadog, Grafana, Layr Cloud, and local mode. Each oversight event is also appended to a hash chain the platform can verify.
+`require_review` pauses a decision until a named person approves, overrides, or escalates it. The request and the outcome are normal `LayrEvent`s, so they export through OTLP, Datadog, Grafana, Layr Cloud, and local mode. Each review event is also appended to a hash chain.
 
-Outcomes are `approved`, `overridden`, `escalated`, and `timed_out`. `on_timeout` is `escalate` (emit a timeout, then an escalation), `deny`, or `queue`. `enforcement="shadow"` records that a review would have been required and returns immediately. That result is not oversight evidence.
+Outcomes are `approved`, `overridden`, `escalated`, and `timed_out`. `on_timeout` is `escalate` (emit a timeout, then an escalation), `deny`, or `queue`. `enforcement="shadow"` records the request and returns without waiting.
 
 ```python
 import asyncio
@@ -191,11 +191,11 @@ evidence_hash = sha256(prev_hash + canonical_json(payload) + timestamp)
 
 `canonical_json` is UTF-8 JSON with sorted keys and no extra whitespace. The first record's `prev_hash` is 64 zeroes (`layr.GENESIS_HASH`). `timestamp` is the event's UTC timestamp. `verify_events` rebuilds the chain from exported events, including a JSON round trip. Pass `expected_tip=agent.evidence_log.tip` (or a tip you stored earlier) to detect a rewritten chain.
 
-### Article 26 metadata
+### Review event fields
 
-Oversight events set `article_26` to `26(2)` and `article_26_duty` to `human_oversight`. The same metadata includes `article_26_mappings`: the primary duty, plus `26(6)` / `log_retention` (label `logs`) because the hash-chained record is the retained log. Paragraph `26(5)` is `monitor_incidents` and is the primary duty for incident evidence. `retention_days` defaults to 180. `configure_retention(days, region, immutable=True)` records a `26(6)` retention event and flags `retention_meets_article_26_6` when the window is at least six months.
+A review event keeps the usual `LayrEvent` fields. The hashed metadata also includes `evidence_kind`, `decision_id`, `outcome`, `reviewer`, `reason`, `automatic`, `prev_hash`, `evidence_hash`, and `decided_at`. Checkpoint events add `action`, `review_id`, `enforcement`, `on_timeout`, `timeout_s`, `escalate_to`, `requested_at`, and `review_latency_ms` where they apply. An override or escalation can include `from_action`, `to_action`, `from_reviewer`, and `to_reviewer`. A timeout escalation sets `automatic` to true.
 
-`counts_as_oversight` is true only when a named human actually approved, overrode, or escalated. Timeouts, automatic escalation, and shadow mode stay false, so a board report can ignore them.
+`configure_retention(days, region, immutable)` stores only the values you pass. Those values are copied onto later review events. Unset values are omitted.
 
 OTLP spans keep the existing `layr.<field>` attributes. Scalar metadata is also copied to `layr.meta.<key>`, and the full metadata object is `layr.metadata_json`.
 

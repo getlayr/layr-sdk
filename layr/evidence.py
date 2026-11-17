@@ -1,4 +1,4 @@
-"""Tamper-evident hash chain for oversight evidence.
+"""Tamper-evident hash chain for recorded events.
 
 Each record is::
 

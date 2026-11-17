@@ -81,7 +81,7 @@ class InstantBackend(ReviewBackend):
 
 
 @pytest.mark.asyncio
-async def test_require_review_approved_is_article_26_evidence() -> None:
+async def test_require_review_approved_records_a_hash_chain() -> None:
     agent = _agent(review_backend=CallbackReviewBackend(_approve))
     decision = await agent.require_review(
         decision_id="loan_88421",
@@ -104,15 +104,20 @@ async def test_require_review_approved_is_article_26_evidence() -> None:
     approved = decision.events[-1]
     assert approved.evidence_kind == "human_review"
     assert approved.decision_id == "loan_88421"
-    assert approved.article_26 == "26(2)"
-    assert approved.article_26_duty == "human_oversight"
-    assert approved.metadata["counts_as_oversight"] is True
-    assert approved.metadata["retention_days"] == 180
-    mappings = approved.metadata["article_26_mappings"]
-    assert [row["paragraph"] for row in mappings] == ["26(2)", "26(6)"]
-    assert mappings[1]["duty"] == "log_retention"
-    assert mappings[1]["label"] == "logs"
-    assert decision.events[0].metadata["counts_as_oversight"] is False
+    assert approved.metadata["outcome"] == "approved"
+    assert approved.metadata["reviewer"] == "ava.chen@acme.com"
+    assert approved.metadata["automatic"] is False
+    assert approved.metadata["enforcement"] == "enforce"
+    assert "retention_days" not in approved.metadata
+    for forbidden in (
+        "article_26",
+        "article_26_duty",
+        "article_26_mappings",
+        "counts_as_oversight",
+        "retention_meets_article_26_6",
+    ):
+        assert forbidden not in approved.metadata
+        assert forbidden not in approved.to_dict()
     assert "evidence_hash" in approved.to_dict()
 
     check = verify_events(decision.events, expected_tip=agent.evidence_log.tip)
@@ -129,11 +134,11 @@ async def test_require_review_approved_is_article_26_evidence() -> None:
     set_layr_span_attributes(span, approved)
     assert span.attrs["layr.action_type"] == "review_approved"
     assert span.attrs["layr.evidence_hash"] == approved.evidence_hash
-    assert span.attrs["layr.article_26"] == "26(2)"
+    assert "layr.article_26" not in span.attrs
     assert span.attrs["layr.meta.outcome"] == "approved"
-    assert span.attrs["layr.meta.retention_days"] == 180
+    assert span.attrs["layr.meta.reviewer"] == "ava.chen@acme.com"
     assert isinstance(span.attrs["layr.metadata"], str)
-    assert "human_oversight" in str(span.attrs["layr.metadata_json"])
+    assert "article_26" not in str(span.attrs["layr.metadata_json"])
     await agent.aclose()
 
 
@@ -161,7 +166,7 @@ async def test_override_callback_timeouts_and_shadow(
     assert decision.events[-1].evidence_kind == "override"
     output = capsys.readouterr().out
     assert "evidence=override" in output
-    assert "article=26(2)" in output
+    assert "article=" not in output
 
     async def escalate(request: ReviewRequest) -> ReviewResolution:
         return ReviewResolution(
@@ -193,7 +198,8 @@ async def test_override_callback_timeouts_and_shadow(
     assert denied.timeout_action == "deny"
     assert denied.events[-1].action_type == "review_timed_out"
     assert denied.events[-1].action_success is False
-    assert denied.events[-1].metadata["counts_as_oversight"] is False
+    assert denied.events[-1].metadata["automatic"] is True
+    assert denied.events[-1].metadata["on_timeout"] == "deny"
 
     queued = await agent.require_review(
         decision_id="loan_12",
@@ -221,7 +227,7 @@ async def test_override_callback_timeouts_and_shadow(
         "review_escalated",
     ]
     assert escalated_timeout.events[-1].metadata["automatic"] is True
-    assert escalated_timeout.events[-1].metadata["counts_as_oversight"] is False
+    assert escalated_timeout.events[-1].metadata["to_reviewer"] == "cro@acme.com"
 
     calls = {"n": 0}
 
@@ -238,7 +244,8 @@ async def test_override_callback_timeouts_and_shadow(
     )
     assert shadow.outcome == "shadow"
     assert calls["n"] == 0
-    assert shadow.events[0].metadata["counts_as_oversight"] is False
+    assert shadow.events[0].metadata["enforcement"] == "shadow"
+    assert shadow.events[0].action_type == "review_requested"
     assert agent.evidence_log.verify().ok
     await agent.aclose()
 
@@ -307,11 +314,13 @@ async def test_in_memory_resolve_and_explicit_events() -> None:
     assert rejected.action_type == "review_rejected"
     assert overridden.metadata["from_action"] == "approve_loan"
     assert escalated.metadata["to_reviewer"] == "cro@acme.com"
-    assert retention.article_26 == "26(6)"
-    assert retention.metadata["retention_meets_article_26_6"] is True
+    assert retention.metadata["retention_days"] == 180
     assert retention.metadata["storage_region"] == "eu-west-1"
-    assert short.metadata["retention_meets_article_26_6"] is False
+    assert retention.metadata["retention_immutable"] is True
+    assert "retention_meets_article_26_6" not in retention.metadata
     assert short.metadata["retention_days"] == 30
+    assert short.metadata["storage_region"] == "eu-west-1"
+    assert short.metadata["retention_immutable"] is True
 
     tracked = await agent.track(action="approve_loan", target="loan_16", success=True)
     mixed = [
@@ -577,5 +586,6 @@ async def test_evidence_exports_through_the_existing_pipeline() -> None:
     await agent.aclose()
     kinds = [event.action_type for event in capture.events]
     assert kinds == ["review_requested", "review_approved"]
-    assert capture.events[-1].metadata["article_26"] == "26(2)"
+    assert capture.events[-1].metadata["outcome"] == "approved"
+    assert "article_26" not in capture.events[-1].metadata
     assert verify_events(capture.events, expected_tip=decision.evidence_hash).ok

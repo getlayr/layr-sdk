@@ -26,11 +26,8 @@ class LocalExporter(BaseExporter):
                 success=event.action_success,
             )
             if event.evidence_hash:
-                lines += (
-                    "\n       evidence={kind} article={article} hash={digest}".format(
-                        kind=event.evidence_kind,
-                        article=event.article_26,
-                        digest=event.evidence_hash[:12],
-                    )
+                lines += "\n       evidence={kind} hash={digest}".format(
+                    kind=event.evidence_kind,
+                    digest=event.evidence_hash[:12],
                 )
             print(lines)

@@ -1,4 +1,4 @@
-"""Pause a high-risk decision for a named reviewer and verify the evidence chain."""
+"""Pause a decision for a named reviewer and verify the hash chain."""
 
 import asyncio
 

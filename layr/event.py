@@ -104,5 +104,3 @@ def _promote_evidence_fields(event: LayrEvent) -> None:
     event.decision_id = _md_str(metadata, "decision_id")
     event.prev_hash = _md_str(metadata, "prev_hash")
     event.evidence_hash = _md_str(metadata, "evidence_hash")
-    event.article_26 = _md_str(metadata, "article_26")
-    event.article_26_duty = _md_str(metadata, "article_26_duty")

@@ -1,6 +1,6 @@
-"""Human-oversight checkpoint and pluggable review backends.
+"""Human checkpoint and pluggable review backends.
 
-``require_review`` pauses a high-risk decision until a named person approves,
+``require_review`` pauses a decision until a named person approves,
 overrides, or escalates. Two backends ship with the SDK:
 
 - ``CallbackReviewBackend`` keeps the pending review in memory and can resolve

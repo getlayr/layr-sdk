@@ -8,7 +8,6 @@ from threading import Lock
 from typing import Callable, Dict, List, Mapping, Optional, Union, cast
 
 from layr.anomaly import Baselines, compute_deviation, is_anomalous
-from layr.compliance import article_mappings
 from layr.event import build_event
 from layr.evidence import EvidenceLog
 from layr.exceptions import ConfigurationError, EvidenceError, ExportError, ReviewError
@@ -115,9 +114,9 @@ class Agent:
         on_anomaly: Optional[Callable[[LayrEvent], None]] = None,
         fail_silent: bool = True,
         review_backend: Optional[ReviewBackend] = None,
-        retention_days: int = 180,
-        storage_region: str = "",
-        retention_immutable: bool = True,
+        retention_days: Optional[int] = None,
+        storage_region: Optional[str] = None,
+        retention_immutable: Optional[bool] = None,
         endpoint: Optional[str] = None,
         raise_on_export_error: bool = False,
     ) -> None:
@@ -165,17 +164,9 @@ class Agent:
         self._worker_loop: Optional[asyncio.AbstractEventLoop] = None
         self._evidence_log = EvidenceLog()
         self.review_backend: ReviewBackend = review_backend or CallbackReviewBackend()
-        if (
-            isinstance(retention_days, bool)
-            or not isinstance(retention_days, int)
-            or retention_days < 0
-        ):
-            raise ConfigurationError("retention_days must be a non-negative integer")
-        if not isinstance(storage_region, str):
-            raise ConfigurationError("storage_region must be a string")
-        self._retention_days = retention_days
-        self._storage_region = storage_region
-        self._retention_immutable = bool(retention_immutable)
+        self._retention_days = _optional_retention_days(retention_days)
+        self._storage_region = _optional_region(storage_region)
+        self._retention_immutable = retention_immutable
         self._exporter = self._make_exporter(
             otlp_endpoint=otlp_endpoint,
             datadog_api_key=datadog_api_key,
@@ -367,7 +358,7 @@ class Agent:
 
     @property
     def evidence_log(self) -> EvidenceLog:
-        """Hash-chained oversight log for this agent."""
+        """Hash chain of events recorded by this agent."""
         return self._evidence_log
 
     async def require_review(
@@ -384,13 +375,13 @@ class Agent:
         backend: Optional[ReviewBackend] = None,
         review_id: Optional[str] = None,
     ) -> ReviewDecision:
-        """Pause a high-risk decision until a named human resolves it.
+        """Pause a decision until a named human resolves it.
 
         Emits ``review_requested`` immediately, then one of ``review_approved``,
         ``review_overridden``, ``review_escalated``, or ``review_timed_out``.
         A timeout with ``on_timeout="escalate"`` emits both the timeout and the
         escalation. ``enforcement="shadow"`` records the request and returns
-        without waiting, so the call is not oversight evidence.
+        without waiting.
 
         Use ``require_review_sync`` from code that is not already async.
         """
@@ -465,7 +456,6 @@ class Agent:
             reason=reason.strip(),
             summary=summary,
             intent="human_review",
-            counts_as_oversight=True,
         )
 
     async def override(
@@ -489,7 +479,6 @@ class Agent:
             reason=reason.strip(),
             summary=summary,
             intent=_require_text(to_action, "to_action"),
-            counts_as_oversight=True,
             extra={
                 "from_action": _require_text(from_action, "from_action"),
                 "to_action": _require_text(to_action, "to_action"),
@@ -518,28 +507,26 @@ class Agent:
             reason=reason.strip(),
             summary=summary,
             intent="escalate",
-            counts_as_oversight=True,
             extra={"from_reviewer": source, "to_reviewer": target},
         )
 
     async def configure_retention(
         self,
-        days: int = 180,
-        region: str = "",
-        immutable: bool = True,
+        days: Optional[int] = None,
+        region: Optional[str] = None,
+        immutable: Optional[bool] = None,
     ) -> LayrEvent:
-        """Set Article 26(6) retention metadata and emit a retention event.
+        """Store an optional customer retention setting and record it on the chain.
 
-        ``days`` below 180 is stored and flagged ``retention_meets_article_26_6``
-        false. The regulation's floor for deployer-controlled logs is six months.
+        Only values passed here are kept. Later review events include the
+        settings that have been set. Unset settings are omitted.
         """
-        if isinstance(days, bool) or not isinstance(days, int) or days < 0:
-            raise ReviewError("retention days must be a non-negative integer")
-        if not isinstance(region, str):
-            raise ReviewError("storage region must be a string")
-        self._retention_days = days
-        self._storage_region = region
-        self._retention_immutable = bool(immutable)
+        if days is not None:
+            self._retention_days = _optional_retention_days(days, ReviewError)
+        if region is not None:
+            self._storage_region = _optional_region(region, ReviewError)
+        if immutable is not None:
+            self._retention_immutable = immutable
         return await self._emit_evidence(
             action_type="retention_configured",
             evidence_kind="retention",
@@ -548,8 +535,6 @@ class Agent:
             reviewer="",
             reason="",
             intent="configure_retention",
-            counts_as_oversight=False,
-            extra={"retention_meets_article_26_6": days >= 180},
         )
 
     async def _require_review(
@@ -597,7 +582,6 @@ class Agent:
             reason="",
             summary=summary,
             intent=action_name,
-            counts_as_oversight=False,
             extra={**common, "review_latency_ms": 0},
         )
         events = [requested]
@@ -682,7 +666,6 @@ class Agent:
             reason=resolution.reason,
             summary=summary,
             intent=action_name,
-            counts_as_oversight=True,
             extra=extra,
         )
         events.append(event)
@@ -734,7 +717,6 @@ class Agent:
             summary=summary,
             success=False,
             intent=action,
-            counts_as_oversight=False,
             automatic=True,
             extra=base_extra,
         )
@@ -750,7 +732,6 @@ class Agent:
                 reason=escalate_reason,
                 summary=summary,
                 intent=action,
-                counts_as_oversight=False,
                 automatic=True,
                 extra={
                     **base_extra,
@@ -781,6 +762,16 @@ class Agent:
             )
         _assert_never(timeout_action)
 
+    def _retention_metadata(self) -> Dict[str, object]:
+        fields: Dict[str, object] = {}
+        if self._retention_days is not None:
+            fields["retention_days"] = self._retention_days
+        if self._storage_region is not None:
+            fields["storage_region"] = self._storage_region
+        if self._retention_immutable is not None:
+            fields["retention_immutable"] = self._retention_immutable
+        return fields
+
     async def _emit_evidence(
         self,
         *,
@@ -793,7 +784,6 @@ class Agent:
         summary: Optional[Dict[str, object]] = None,
         success: bool = True,
         intent: str = "",
-        counts_as_oversight: bool = False,
         automatic: bool = False,
         extra: Optional[Dict[str, object]] = None,
     ) -> LayrEvent:
@@ -804,11 +794,6 @@ class Agent:
         else:
             raise ReviewError("summary must be an object")
         timestamp = utc_now_iso()
-        try:
-            mappings = article_mappings(evidence_kind)
-        except ValueError as exc:
-            raise ReviewError(str(exc)) from exc
-        primary = mappings[0]
         with self._lock:
             session_id = self._session.session_id
         payload: Dict[str, object] = {}
@@ -827,16 +812,10 @@ class Agent:
                 "session_id": session_id,
                 "summary": summary_value,
                 "timestamp": timestamp,
-                "article_26": primary["paragraph"],
-                "article_26_duty": primary["duty"],
-                "article_26_mappings": mappings,
-                "retention_days": self._retention_days,
-                "storage_region": self._storage_region,
-                "retention_immutable": self._retention_immutable,
-                "counts_as_oversight": counts_as_oversight,
                 "automatic": automatic,
             }
         )
+        payload.update(self._retention_metadata())
         try:
             record = self._evidence_log.append(payload, timestamp)
         except EvidenceError as exc:
@@ -871,6 +850,26 @@ class Agent:
         await self.flush()
         await self._exporter.close()
         await self.review_backend.aclose()
+
+
+def _optional_retention_days(
+    days: Optional[int], error: type[Exception] = ConfigurationError
+) -> Optional[int]:
+    if days is None:
+        return None
+    if isinstance(days, bool) or not isinstance(days, int) or days < 0:
+        raise error("retention days must be a non-negative integer")
+    return days
+
+
+def _optional_region(
+    region: Optional[str], error: type[Exception] = ConfigurationError
+) -> Optional[str]:
+    if region is None:
+        return None
+    if not isinstance(region, str):
+        raise error("storage region must be a string")
+    return region
 
 
 def _resolve_exporter(explicit: Optional[str]) -> tuple[str, bool]:

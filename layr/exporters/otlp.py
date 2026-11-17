@@ -24,9 +24,8 @@ def set_layr_span_attributes(span: SpanAttributes, event: LayrEvent) -> None:
     """Copy a Layr event onto a span without changing the existing attribute names.
 
     Top-level fields stay ``layr.<field>`` string attributes. Scalar metadata
-    keys are also set as ``layr.meta.<key>`` so evidence fields (outcome,
-    reviewer, retention, article duty) can be filtered. ``layr.metadata_json``
-    is the metadata object as JSON.
+    keys are also set as ``layr.meta.<key>``. ``layr.metadata_json`` is the
+    metadata object as JSON.
     """
     data = event.to_dict()
     metadata = data.get("metadata")
