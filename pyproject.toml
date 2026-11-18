@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "layr-sdk"
-version = "0.3.0"
+version = "0.4.0"
 description = "Observability for AI agents"
 authors = [
     {name = "Ben Higgins", email = "hello@getlayr.co"}

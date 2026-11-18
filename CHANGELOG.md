@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-11-18
 
 - Added optional CrewAI and AutoGen extras. CrewAI step and task callbacks record events, and `require_review_tool` runs a tool only after approval. AutoGen 0.4+ message callbacks and the same review gate do the same. Prompt and tool output text is omitted unless `capture_content=True`.
 
