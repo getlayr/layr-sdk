@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added optional CrewAI and AutoGen extras. CrewAI step and task callbacks record events, and `require_review_tool` runs a tool only after approval. AutoGen 0.4+ message callbacks and the same review gate do the same. Prompt and tool output text is omitted unless `capture_content=True`.
+
 ## 0.3.0 — 2026-11-17
 
 - Added an optional LangChain extra. `LayrCallbackHandler` and `LayrAsyncCallbackHandler` record tool and model calls. `require_review_tool` runs a tool only after a named person approves it. Prompt and response text is omitted unless `capture_content=True`.
