@@ -238,6 +238,56 @@ gated = require_review_tool(
 
 A runnable local example is `examples/langchain_agent.py`.
 
+## CrewAI
+
+```bash
+pip install "layr-sdk[crewai]"
+```
+
+`import layr` does not import CrewAI. `step_callback(agent)` and `task_callback(agent)` return callables for a CrewAI agent or crew. They record the step type, tool name, or task name. Tool input and task text are omitted unless `capture_content=True`.
+
+`require_review_tool` wraps a tool that has `run` or `_run`. The tool runs only when `require_review` returns `approved`. Any other outcome raises `ToolReviewDenied`. Pass the wrapped tool to the agent before CrewAI copies `_run` into its structured tool. `examples/crewai_agent.py` runs without a CrewAI install.
+
+```python
+from layr import Agent
+from layr.integrations.crewai import require_review_tool, step_callback, task_callback
+
+agent = Agent(api_key="your-key", agent_name="crew", exporter="local", mode="local")
+# Agent(..., step_callback=step_callback(agent))
+# Task(..., callback=task_callback(agent))
+gated = require_review_tool(
+    search_tool,
+    agent,
+    reviewer="ava@example.com",
+    timeout_s=3600,
+    on_timeout="deny",
+)
+```
+
+## AutoGen
+
+The maintained packages are `autogen-agentchat` and `autogen-core` 0.4 or later. The `autogen` extra installs `autogen-agentchat`. Legacy pyautogen 0.2 `register_function` is not wrapped.
+
+```bash
+pip install "layr-sdk[autogen]"
+```
+
+`message_callback(agent)` records the message type and source. Content is omitted unless `capture_content=True`. `require_review_tool` returns an async function for a plain function, or a proxy with `run` and `run_json` for an AutoGen tool. `AssistantAgent(..., tools=[gated])` can take that function. The tool runs only after approval. Anything else raises `ToolReviewDenied`. `examples/autogen_agent.py` runs without a model client.
+
+```python
+from layr import Agent
+from layr.integrations.autogen import message_callback, require_review_tool
+
+agent = Agent(api_key="your-key", agent_name="autogen", exporter="local", mode="local")
+gated = require_review_tool(
+    lookup,
+    agent,
+    reviewer="ava@example.com",
+    timeout_s=3600,
+    on_timeout="deny",
+)
+```
+
 ## Documentation
 
 Full documentation: [www.getlayr.co/docs](https://www.getlayr.co/docs)
